@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'org.web3j' version '4.9.0'
+}
+
+group 'com.kskim.project'
+version '1.2-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+node {
+    version = '16.14.2'
+}
+
+tasks {
+    compileJava {
+        dependsOn("generateContractWrappers")
+    }
+    compileTestJava {
+        dependsOn("generateTestContractWrappers")
+    }
+}
+
+sourceSets {
+    main {
+        solidity {
+            srcDir {
+                "../src/contract"
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation("org.web3j:core:4.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.9.3")
+}
+
+publishing {
+    publications {
+        myPublication(MavenPublication) {
+            groupId = 'com.kskim.project'
+            artifactId = 'maven-package-publish-test'
+            version = '1.2-SNAPSHOT'
+            from components.java
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/ks-kim/maven-package-publish-test")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME")
+                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
