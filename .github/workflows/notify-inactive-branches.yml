@@ -1,0 +1,51 @@
+name: 비활성 브랜치 알림
+
+on:
+  workflow_dispatch: # 수동 트리거를 허용
+    inputs:
+      inactive_days:
+        description: "비활성 기준 일수 (기본값: 30일)"
+        required: false
+        default: "" # 입력하지 않을 경우 빈 값
+
+env:
+  DEFAULT_INACTIVE_DAYS: 30 # 기본 비활성 기준 일수
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }} # 슬랙 Webhook URL
+
+jobs:
+  notify-inactive-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 저장소 체크아웃
+      uses: actions/checkout@v3
+
+    - name: 모든 브랜치 가져오기
+      run: git fetch --all
+
+    - name: 비활성 브랜치와 마지막 커밋 정보 추출
+      id: list-inactive
+      run: |
+        # 입력값이 없으면 기본값 사용
+        INACTIVE_DAYS=${{ github.event.inputs.inactive_days || env.DEFAULT_INACTIVE_DAYS }}
+        echo "비활성 기준 일수: $INACTIVE_DAYS"
+
+        INACTIVE_BRANCHES=""
+        NOW=$(date +%s)
+
+        for branch in $(git for-each-ref --format="%(refname:short)" refs/heads/); do
+          LAST_COMMIT_DATE=$(git log -1 --format=%ct "$branch")
+          LAST_COMMIT_AUTHOR=$(git log -1 --format='%an <%ae>' "$branch")
+          AGE=$(( (NOW - LAST_COMMIT_DATE) / 86400 ))
+
+          if [ $AGE -gt $INACTIVE_DAYS ]; then
+            INACTIVE_BRANCHES="$INACTIVE_BRANCHES\n- *$branch*: 마지막 커밋 작성자: $LAST_COMMIT_AUTHOR ($AGE일 전 커밋됨)"
+          fi
+        done
+
+        if [ -z "$INACTIVE_BRANCHES" ]; then
+          echo "비활성 브랜치가 없습니다."
+        else
+          echo -e "다음 브랜치들이 $INACTIVE_DAYS일 이상 비활성 상태입니다:\n$INACTIVE_BRANCHES"
+          echo "::set-output name=branches::$INACTIVE_BRANCHES"
+        fi
